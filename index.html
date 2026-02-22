@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleGhostHunter: Arcade Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSS STYLING --- */
+        body {
+            background-color: #050505;
+            color: #e0e0e0;
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .game-container {
+            width: 100vw; /* Fullscreen width */
+            height: 100vh; /* Fullscreen height */
+            max-width: none; /* Removed max-width constraint */
+            position: relative;
+            background: #111;
+            border-radius: 0; /* Removed radius for fullscreen */
+            box-shadow: none; /* Removed shadow */
+            border: none; /* Removed border */
+            overflow: hidden;
+        }
+
+        /* HUD Overlay */
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .score-box {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #00ffc8;
+            padding: 15px 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .score-label {
+            font-size: 0.9rem;
+            color: #00ffc8;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .score-value {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 10px #00ffc8;
+        }
+
+        .combo-box {
+            text-align: right;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .combo-box.active { opacity: 1; }
+
+        .combo-count {
+            font-size: 3rem;
+            color: #ff0055;
+            font-weight: 900;
+            text-shadow: 2px 2px 0 #fff;
+            transform: skew(-10deg);
+        }
+        
+        .combo-label {
+            color: #fff;
+            font-size: 1.2rem;
+            letter-spacing: 3px;
+        }
+
+        /* Canvas */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: none;
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
+        }
+
+        /* Modals/Overlays */
+        .overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 15, 0.95);
+            border: 4px solid #00ffc8;
+            padding: 40px; /* Reduced from 60px to make it shorter */
+            border-radius: 20px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 0 60px rgba(0, 255, 200, 0.5);
+            min-width: 350px; /* Slightly reduced width */
+            max-width: 90%;
+        }
+
+        .overlay h2 {
+            font-size: 3rem; /* Reduced from 4rem */
+            margin: 0 0 10px 0;
+            background: linear-gradient(to right, #00ffc8, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .overlay p {
+            font-size: 1.2rem; /* Reduced from 1.5rem */
+            color: #ccc;
+            margin-bottom: 30px; /* Reduced spacing */
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #00ffc8, #00ccff);
+            border: none;
+            padding: 15px 40px; /* Slightly reduced padding */
+            font-size: 1.3rem; /* Slightly reduced font size */
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            color: #000;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 200, 0.6);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Animations */
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            80% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .modal-animate {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+    </style>
+    <script>
+        document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        }, false);
+        
+        document.addEventListener('keydown', (event) => {
+    // Check for F12
+    if (event.key === "F12") {
+        event.preventDefault();
+    }
+
+    // Check for Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), or Ctrl+U (Source)
+    if (event.ctrlKey && (event.shiftKey && (event.key === 'I' || event.key === 'J') || event.key === 'U')) {
+        event.preventDefault();
+    }
+});
+    </script>
+</head>
+<body>
+
+<div class="game-container">
+    <!-- HUD -->
+    <div class="hud">
+        <div class="score-box">
+            <div class="score-label">Score</div>
+            <div class="score-value" id="scoreValue">0</div>
+        </div>
+        <div class="combo-box" id="comboBox">
+            <div class="combo-count" id="comboValue">2x</div>
+            <div class="combo-label">COMBO!</div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="overlay modal-animate" style="display: block;">
+        <h2>GHOST HUNTER</h2>
+        <p>Day Mission: Clear the Area</p>
+        <p style="font-size: 0.9rem; color: #888; margin-top: -20px;">Aim with Mouse • Click to Shoot</p>
+        <button class="btn" onclick="startGame()">Start Mission</button>
+    </div>
+
+    <!-- Win Screen -->
+    <div id="winScreen" class="overlay">
+        <h2>MISSION COMPLETE!</h2>
+        <p>Excellent shooting, Hunter.</p>
+        <div style="font-size: 2rem; margin-bottom: 30px; color: #ffda00;" id="finalScore"></div>
+        <button class="btn" onclick="resetGame()">Play Again</button>
+    </div>
+</div>
+
+<script>
+    /** * GAME CONFIGURATION 
+     */
+    const TARGET_SCORE = 20;
+    const GHOST_BASE_TIME = 2500; // ms between teleports
+    const COLORS = {
+        skyTop: '#4facfe',
+        skyBot: '#00f2fe',
+        grass: '#2d4a22',
+        road: '#333333',
+        roadLine: '#ffffff',
+        ghost: '#ffffff',
+        ghostGlow: 'rgba(255, 255, 255, 0.6)',
+        crosshair: '#ff0055',
+        crosshairRing: '#00ffc8'
+    };
+
+    /**
+     * STATE
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let gameState = {
+        active: false,
+        score: 0,
+        combo: 0,
+        lastHitTime: 0,
+        width: 0,
+        height: 0,
+        roadOffset: 0,
+        mouseX: 0,
+        mouseY: 0,
+        shake: 0
+    };
+
+    let ghost = {
+        x: 0,
+        y: 0,
+        radius: 40,
+        visible: true,
+        lastTeleport: 0,
+        hoverOffset: 0
+    };
+
+    let objects = {
+        trees: [],
+        particles: [],
+        floatingTexts: []
+    };
+
+    let audioCtx = null;
+
+    /**
+     * INIT & RESIZE
+     */
+    function resize() {
+        const parent = canvas.parentElement;
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+        gameState.width = canvas.width;
+        gameState.height = canvas.height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function startGame() {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+
+        document.getElementById('startScreen').style.display = 'none';
+        document.getElementById('winScreen').style.display = 'none';
+        
+        resetState();
+        gameState.active = true;
+        
+        // Spawn initial trees scattered on road
+        for(let i=0; i<30; i++) {
+            // Random Y between horizon and bottom
+            const horizon = gameState.height * 0.35;
+            const y = horizon + Math.random() * (gameState.height - horizon);
+            objects.trees.push(createTree(y));
+        }
+        
+        teleportGhost();
+        gameLoop();
+    }
+
+    function resetGame() {
+        startGame();
+    }
+
+    function resetState() {
+        gameState.score = 0;
+        gameState.combo = 0;
+        gameState.roadOffset = 0;
+        gameState.shake = 0;
+        objects.particles = [];
+        objects.floatingTexts = [];
+        objects.trees = [];
+        updateUI();
+    }
+
+    /**
+     * AUDIO SYSTEM (Synth)
+     */
+    function playSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const now = audioCtx.currentTime;
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'shoot') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'hit') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.linearRampToValueAtTime(1200, now + 0.1);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+            
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1500, now);
+            gain2.gain.setValueAtTime(0.1, now);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+            osc2.start(now);
+            osc2.stop(now + 0.2);
+        } else if (type === 'miss') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+    }
+
+    /**
+     * GAME LOGIC
+     */
+    function update() {
+        if (!gameState.active) return;
+
+        const horizonY = gameState.height * 0.35;
+
+        // Scroll Road
+        gameState.roadOffset = (gameState.roadOffset + 8) % 60;
+
+        // Teleport Ghost Timer
+        if (Date.now() - ghost.lastTeleport > GHOST_BASE_TIME) {
+            teleportGhost();
+        }
+
+        // Tree Logic - Improved Perspective Movement
+        // Spawn
+        if (Math.random() < 0.08) {
+            // Spawn exactly at horizon
+            objects.trees.push(createTree(horizonY + 2)); 
+        }
+
+        // Move
+        objects.trees.forEach(t => {
+            // Calculate distance factor (0 at horizon, 1 at bottom roughly)
+            const distFactor = (t.y - horizonY) / (gameState.height - horizonY);
+            
+            // ACCELERATION: Speed increases as it gets closer (lower on screen)
+            // Base speed * (minimum + curve)
+            const moveSpeed = t.speed * (0.1 + (distFactor * 3.5));
+            
+            t.y += moveSpeed;
+        });
+
+        // Cull off-screen trees
+        objects.trees = objects.trees.filter(t => t.y < gameState.height + 150);
+        objects.trees.sort((a,b) => a.y - b.y);
+
+        // Particles
+        objects.particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.02;
+            p.vy += 0.2; // gravity
+        });
+        objects.particles = objects.particles.filter(p => p.life > 0);
+
+        // Floating Text
+        objects.floatingTexts.forEach(t => {
+            t.y -= 1;
+            t.life -= 0.015;
+            t.scale = Math.min(1.2, t.scale + 0.05); // slight pop in
+        });
+        objects.floatingTexts = objects.floatingTexts.filter(t => t.life > 0);
+
+        // Ghost Animation
+        ghost.hoverOffset = Math.sin(Date.now() / 300) * 5;
+
+        // Screen Shake Decay
+        if (gameState.shake > 0) gameState.shake *= 0.9;
+        if (gameState.shake < 0.5) gameState.shake = 0;
+    }
+
+    function createTree(y) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        // Trees stick to side of road roughly
+        return {
+            y: y,
+            side: side,
+            speed: 6 + Math.random() * 2, // Base speed
+            type: Math.floor(Math.random() * 2), // 0: round, 1: pine
+            colorVariance: Math.random() * 20
+        };
+    }
+
+    function teleportGhost() {
+        const horizon = gameState.height * 0.35;
+        ghost.x = (gameState.width * 0.2) + Math.random() * (gameState.width * 0.6);
+        ghost.y = horizon + Math.random() * (gameState.height * 0.5);
+        ghost.lastTeleport = Date.now();
+        
+        // Spawn "poof" particles at old location
+        spawnParticles(ghost.x, ghost.y, 10, '#fff');
+    }
+
+    function spawnParticles(x, y, count, color) {
+        for (let i = 0; i < count; i++) {
+            objects.particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 1.0,
+                color: color,
+                size: Math.random() * 5 + 2
+            });
+        }
+    }
+
+    function spawnFloatingText(text, x, y, color) {
+        objects.floatingTexts.push({
+            text: text,
+            x: x,
+            y: y,
+            life: 1.0,
+            color: color,
+            scale: 0.5
+        });
+    }
+
+    function handleClick(e) {
+        if (!gameState.active) return;
+        
+        // Screenshake for shooting
+        gameState.shake = 5;
+        playSound('shoot');
+
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        const dx = clickX - ghost.x;
+        const dy = clickY - (ghost.y + ghost.hoverOffset);
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist < ghost.radius * 1.2) {
+            // HIT
+            handleHit();
+        } else {
+            // MISS
+            handleMiss();
+        }
+    }
+
+    function handleHit() {
+        gameState.score++;
+        
+        // Combo Logic
+        const now = Date.now();
+        if (now - gameState.lastHitTime < 2000) {
+            gameState.combo++;
+        } else {
+            gameState.combo = 1;
+        }
+        gameState.lastHitTime = now;
+
+        playSound('hit');
+        gameState.shake = 15; // Big shake on hit
+
+        // Feedback
+        spawnParticles(ghost.x, ghost.y, 20, '#00ffc8');
+        spawnParticles(ghost.x, ghost.y, 10, '#ff0055');
+        
+        const praises = ["NICE!", "GREAT!", "AWESOME!", "SPECTACULAR!", "GHOST BUSTED!"];
+        const phrase = praises[Math.floor(Math.random() * praises.length)];
+        spawnFloatingText(phrase, ghost.x, ghost.y - 50, '#00ffc8');
+        if (gameState.combo > 1) {
+            spawnFloatingText(`${gameState.combo}x COMBO!`, ghost.x, ghost.y - 80, '#ffda00');
+        }
+
+        updateUI();
+        teleportGhost();
+
+        if (gameState.score >= TARGET_SCORE) {
+            winGame();
+        }
+    }
+
+    function handleMiss() {
+        gameState.combo = 0;
+        updateUI();
+        playSound('miss');
+        spawnFloatingText("MISS!", gameState.mouseX, gameState.mouseY - 30, '#ff0055');
+    }
+
+    function updateUI() {
+        document.getElementById('scoreValue').innerText = gameState.score;
+        const comboBox = document.getElementById('comboBox');
+        const comboVal = document.getElementById('comboValue');
+        
+        if (gameState.combo > 1) {
+            comboBox.classList.add('active');
+            comboVal.innerText = gameState.combo + "x";
+            // Pulse animation trigger could go here
+        } else {
+            comboBox.classList.remove('active');
+        }
+    }
+
+    function winGame() {
+        gameState.active = false;
+        document.getElementById('winScreen').classList.add('modal-animate');
+        document.getElementById('winScreen').style.display = 'block';
+        document.getElementById('finalScore').innerText = `Score: ${gameState.score}`;
+    }
+
+    /**
+     * RENDERING
+     */
+    function draw() {
+        // Clear & Shake
+        ctx.save();
+        if (gameState.shake > 0) {
+            const dx = (Math.random() - 0.5) * gameState.shake;
+            const dy = (Math.random() - 0.5) * gameState.shake;
+            ctx.translate(dx, dy);
+        }
+
+        // Sky
+        const gradient = ctx.createLinearGradient(0, 0, 0, gameState.height);
+        gradient.addColorStop(0, COLORS.skyTop);
+        gradient.addColorStop(1, COLORS.skyBot);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, gameState.width, gameState.height);
+
+        // Sun
+        ctx.fillStyle = "rgba(255, 240, 200, 0.8)";
+        ctx.shadowBlur = 50;
+        ctx.shadowColor = "yellow";
+        ctx.beginPath();
+        ctx.arc(gameState.width - 100, 80, 60, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Ground/Horizon
+        const horizonY = gameState.height * 0.35;
+        
+        // Draw Mountains (Static Background)
+        ctx.fillStyle = "#2a5298";
+        ctx.beginPath();
+        ctx.moveTo(0, horizonY);
+        ctx.lineTo(gameState.width * 0.2, horizonY - 100);
+        ctx.lineTo(gameState.width * 0.5, horizonY - 50);
+        ctx.lineTo(gameState.width * 0.8, horizonY - 150);
+        ctx.lineTo(gameState.width, horizonY);
+        ctx.lineTo(gameState.width, gameState.height);
+        ctx.lineTo(0, gameState.height);
+        ctx.fill();
+
+        // Road Perspective
+        ctx.fillStyle = COLORS.grass; // Grass
+        ctx.fillRect(0, horizonY, gameState.width, gameState.height - horizonY);
+
+        const centerX = gameState.width / 2;
+        const roadTopW = 20;
+        const roadBotW = gameState.width * 0.8;
+        
+        ctx.fillStyle = COLORS.road;
+        ctx.beginPath();
+        ctx.moveTo(centerX - roadTopW, horizonY);
+        ctx.lineTo(centerX + roadTopW, horizonY);
+        ctx.lineTo(centerX + roadBotW, gameState.height);
+        ctx.lineTo(centerX - roadBotW, gameState.height);
+        ctx.fill();
+
+        // Road Lines (Moving)
+        ctx.strokeStyle = COLORS.roadLine;
+        ctx.lineWidth = 4;
+        ctx.setLineDash([30, 30]);
+        ctx.lineDashOffset = -gameState.roadOffset;
+        ctx.beginPath();
+        ctx.moveTo(centerX, horizonY);
+        ctx.lineTo(centerX, gameState.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Trees
+        objects.trees.forEach(t => drawTree(t, horizonY));
+
+        // Ghost
+        if (gameState.active) {
+            drawGhost(ghost.x, ghost.y + ghost.hoverOffset);
+        }
+
+        // Particles
+        objects.particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        });
+
+        // Floating Text
+        objects.floatingTexts.forEach(t => {
+            ctx.save();
+            ctx.translate(t.x, t.y);
+            ctx.scale(t.scale, t.scale);
+            ctx.globalAlpha = t.life;
+            ctx.fillStyle = t.color;
+            ctx.font = "900 30px 'Orbitron'";
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.strokeText(t.text, 0, 0);
+            ctx.fillText(t.text, 0, 0);
+            ctx.restore();
+        });
+
+        // Player Weapon (Hunter)
+        drawHunter();
+
+        // Crosshair
+        drawCrosshair();
+
+        ctx.restore();
+    }
+
+    function drawTree(tree, horizonY) {
+        // Perspective Math
+        const progress = (tree.y - horizonY) / (gameState.height - horizonY);
+        const scale = 0.2 + (progress * 1.5); // Grow as they come closer
+        
+        // Calculate X based on perspective
+        const centerX = gameState.width / 2;
+        const maxOffset = gameState.width * 0.6;
+        const xPos = centerX + (maxOffset * scale * tree.side);
+
+        ctx.save();
+        ctx.translate(xPos, tree.y);
+        ctx.scale(scale, scale);
+
+        // Trunk
+        ctx.fillStyle = "#3e2723";
+        ctx.fillRect(-10, 0, 20, 100);
+
+        // Foliage
+        const green = `hsl(${100 + tree.colorVariance}, 70%, 40%)`;
+        ctx.fillStyle = green;
+        
+        if (tree.type === 0) {
+            // Round tree
+            ctx.beginPath();
+            ctx.arc(0, -20, 50, 0, Math.PI*2);
+            ctx.fill();
+            // Highlight
+            ctx.fillStyle = `hsl(${100 + tree.colorVariance}, 70%, 55%)`;
+            ctx.beginPath();
+            ctx.arc(-15, -35, 20, 0, Math.PI*2);
+            ctx.fill();
+        } else {
+            // Pine tree
+            ctx.beginPath();
+            ctx.moveTo(0, -120);
+            ctx.lineTo(-40, 0);
+            ctx.lineTo(40, 0);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(0, -90);
+            ctx.lineTo(-50, 30);
+            ctx.lineTo(50, 30);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    function drawGhost(x, y) {
+        ctx.save();
+        ctx.translate(x, y);
+        
+        // Glow
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = COLORS.ghostGlow;
+        
+        // Body
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.beginPath();
+        ctx.arc(0, 0, ghost.radius, Math.PI, 0);
+        
+        // Wavy bottom
+        const waves = 4;
+        const r = ghost.radius;
+        const step = (r * 2) / waves;
+        
+        for(let i=0; i<=waves; i++) {
+            const wx = r - (i * step);
+            const wy = (i % 2 === 0) ? r + 10 : r - 5;
+            ctx.lineTo(wx, wy);
+        }
+        
+        ctx.lineTo(-r, 0);
+        ctx.fill();
+
+        // Eyes
+        ctx.fillStyle = "#000";
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.ellipse(-15, -5, 8, 12, 0, 0, Math.PI*2);
+        ctx.ellipse(15, -5, 8, 12, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawHunter() {
+        const centerX = gameState.width / 2;
+        const bottomY = gameState.height;
+        
+        // Calculate angle to mouse
+        const angle = Math.atan2(gameState.mouseY - bottomY, gameState.mouseX - centerX);
+        
+        ctx.save();
+        ctx.translate(centerX, bottomY);
+        
+        // Base
+        ctx.fillStyle = "#222";
+        ctx.beginPath();
+        ctx.arc(0, 0, 60, Math.PI, 0);
+        ctx.fill();
+        ctx.strokeStyle = "#444";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Turret Rotation
+        ctx.rotate(angle + Math.PI/2);
+
+        // Cannon
+        const recoil = (gameState.shake > 2) ? 10 : 0; // Simple visual recoil
+        
+        // Barrel
+        ctx.fillStyle = "#333";
+        ctx.fillRect(-15, -120 + recoil, 30, 100);
+        
+        // Barrel Detail
+        ctx.fillStyle = "#00ffc8"; // Sci-fi glow strip
+        ctx.fillRect(-5, -100 + recoil, 10, 60);
+
+        // Muzzle
+        ctx.fillStyle = "#111";
+        ctx.fillRect(-20, -130 + recoil, 40, 20);
+
+        ctx.restore();
+    }
+
+    function drawCrosshair() {
+        const x = gameState.mouseX;
+        const y = gameState.mouseY;
+
+        ctx.save();
+        ctx.translate(x, y);
+        
+        // Rotate ring
+        ctx.rotate(Date.now() / 500);
+        
+        ctx.strokeStyle = COLORS.crosshairRing;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 20, 0, Math.PI*2);
+        ctx.stroke();
+
+        // Inner dot
+        ctx.fillStyle = COLORS.crosshair;
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Cross lines
+        ctx.beginPath();
+        ctx.moveTo(0, -25); ctx.lineTo(0, -15);
+        ctx.moveTo(0, 25); ctx.lineTo(0, 15);
+        ctx.moveTo(-25, 0); ctx.lineTo(-15, 0);
+        ctx.moveTo(25, 0); ctx.lineTo(15, 0);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Input Handling
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        gameState.mouseX = e.clientX - rect.left;
+        gameState.mouseY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mousedown', handleClick);
+    
+    // Touch support
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        gameState.mouseX = e.touches[0].clientX - rect.left;
+        gameState.mouseY = e.touches[0].clientY - rect.top;
+    }, {passive: false});
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        gameState.mouseX = e.touches[0].clientX - rect.left;
+        gameState.mouseY = e.touches[0].clientY - rect.top;
+        handleClick(e);
+    }, {passive: false});
+
+</script>
+</body>
+</html>
